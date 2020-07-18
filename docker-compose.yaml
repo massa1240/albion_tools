@@ -1,0 +1,23 @@
+version: "3"
+services:
+  db:
+    image: "postgres:11.2-alpine"
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: albiontools_dev
+    ports:
+      - "5555:5432"
+  app:
+    build: .
+    command: mix phx.server
+    environment:
+      PORT: "4000"
+      MIX_ENV: "dev"
+    depends_on:
+      - db
+    ports:
+      - "4000:4000"
+    volumes:
+      - .:/app
+
