@@ -3,6 +3,8 @@ defmodule AlbionTools.CLI do
 
   alias AlbionTools.Crafting
   alias AlbionTools.Items
+  alias AlbionTools.Items.Item
+  alias AlbionTools.MarketPrice
 
   @crafting_cities "Bridgewatch,Lymhurst,Fort Sterling,Martlock,Thetford"
   @reference_city "Lymhurst"
@@ -31,19 +33,54 @@ defmodule AlbionTools.CLI do
   end
 
   def crafting(_argv, opts) do
-    items = opts[:item_name] |> String.split(",")
+    item_names = opts[:item_name] |> String.split(",")
     tax = Map.get(opts, :tax, 30)
     return_rate = 0.25
     cities = Map.get(opts, :cities, @crafting_cities) |> String.split(",")
     selling_cities = Map.get(opts, :selling_cities, @selling_cities) |> String.split(",")
 
+    items =
+      item_names
+      |> Enum.map(fn item_name -> Items.get_resource!(item_name) end)
+
+    mat_prices =
+      items
+      |> Enum.flat_map(&get_production_items/1)
+      |> MarketPrice.fetch_market_data(cities)
+
+    product_prices =
+      items
+      |> Enum.flat_map(&get_enchanted_items/1)
+      |> Enum.concat(item_names)
+      |> MarketPrice.fetch_market_data(selling_cities)
+
+
     items
-    |> Enum.map(fn item_name -> Items.get_resource!(item_name) end)
-    |> Enum.map(fn item -> Crafting.calculate_profits(item, 0, return_rate, cities, selling_cities) end)
+    |> Enum.map(fn item -> Crafting.calculate_profits(item, 0, return_rate, cities, product_prices, mat_prices) end)
     |> Enum.reduce(fn x, acc -> x ++ acc end)
     |> Enum.sort_by(&Enum.fetch!(&1, 6), :desc)
     |> normalise_date()
     |> render_crafting_results()
+  end
+
+  def get_enchanted_items(item) do
+    Item.extract_enchantments(item)
+      |> Enum.map(fn enchanted_item ->
+        enchantmentlevel = Map.get(enchanted_item, "@enchantmentlevel", "0")
+          |> String.to_integer
+        "#{item.unique_name}@#{enchantmentlevel}"
+      end)
+  end
+
+  def get_production_items(item) do
+    resources =
+      Item.extract_crafting_resources(item)
+      |> Enum.map(fn x -> Items.get_resource!(Map.get x, "@uniquename") end)
+    enchanted_resources =
+      Item.extract_enchanted_crafting_resources(item)
+      |> Enum.map(fn x -> Items.get_resource!(Map.get x, "@uniquename") end)
+
+    Enum.concat(resources, enchanted_resources)
   end
 
   def normalise_date(rows) do
