@@ -1,6 +1,6 @@
 defmodule AlbionTools.AOData.Api do
 
-  @base "https://www.albion-online-data.com/api/v1/stats/prices"
+  @base "https://www.albion-online-data.com/api/v2/stats/prices"
   @headers [
     {"content-type", "application/json"},
     {"accept", "text/html,application/json"}
@@ -10,7 +10,7 @@ defmodule AlbionTools.AOData.Api do
     url = "#{@base}/#{join_list(Enum.uniq(items))}"
 
     HTTPoison.start
-    HTTPoison.get!(url, @headers, params: %{qualities: 0, locations: join_list(Enum.uniq(cities))}).body
+    HTTPoison.get!(url, @headers, params: %{qualities: 1, locations: join_list(Enum.uniq(cities))}).body
     |> Poison.decode!
   end
 

@@ -13,6 +13,17 @@ defmodule AlbionTools.Crafting do
     "8" => 1395
   }
 
+  def lowest_bm_value(product_prices, unique_name) do
+    lowest_value = MarketPrice.fetch_price(product_prices, unique_name, "Black Market")
+
+    type = case lowest_value["sell_price_min"] do
+      0 -> "buy_price_max"
+      _ -> "sell_price_min"
+    end
+
+    {type, lowest_value[type], lowest_value[type <> "_date"]}
+  end
+
   def calculate_profits(item, fee, return_rate, cities, selling_cities) do
     enchantments = Item.extract_enchantments(item)
     model = %{
@@ -37,21 +48,26 @@ defmodule AlbionTools.Crafting do
 
     actual_book = calc_actual_book(item, 0)
     {_, mat_cost} = Enum.map_reduce(model.crafting_materials, 0, fn mat, acc ->
-      {mat, acc + String.to_integer(mat["@count"]) * MarketPrice.lower_sell_order(mat_prices, mat["@uniquename"])["sell_price_min"]}
+      {mat, acc + String.to_integer(mat["@count"]) * MarketPrice.highest_buy_order(mat_prices, mat["@uniquename"])["buy_price_max"]}
     end)
 
-    price_book = floor(actual_book*MarketPrice.lower_sell_order(journal_prices, full_journal)["sell_price_min"])
-    black_market_price = MarketPrice.fetch_price(product_prices, item.unique_name, "Black Market")["sell_price_min"]
-    revenue = black_market_price + price_book
+    single_book_value = MarketPrice.average_sell_order(journal_prices, full_journal)
+    price_book = floor(actual_book * single_book_value)
+    {type, bm_value, bm_date} = lowest_bm_value(product_prices, item.unique_name)
+    {:ok, black_market_date, 0} = DateTime.from_iso8601(bm_date <> "Z")
+    revenue = bm_value + price_book
     expenses = Journals.get_journal_price(Item.get_tier(item)) + mat_cost*(1-return_rate) + floor(0.045*revenue)
+    break_even = expenses - price_book
 
     [[
       item.unique_name,
       actual_book,
-      price_book,
-      black_market_price,
+      "#{price_book} (#{single_book_value})",
+      break_even,
+      "#{bm_value} (#{type})",
       mat_cost,
-      revenue - expenses
+      revenue - expenses,
+      black_market_date
     ]] ++ calculate_enchantment(item, 0, return_rate, mat_prices, journal_prices)
 
   end
@@ -68,20 +84,25 @@ defmodule AlbionTools.Crafting do
       product_prices = MarketPrice.fetch_market_data([unique_name], ["Black Market"])
 
       mat = enchanted_item["craftingrequirements"]["craftresource"]
-      mat_cost = String.to_integer(mat["@count"]) * MarketPrice.lower_sell_order(mat_prices, "#{mat["@uniquename"]}@#{mat["@enchantmentlevel"]}")["sell_price_min"]
+      mat_cost = String.to_integer(mat["@count"]) * MarketPrice.highest_buy_order(mat_prices, "#{mat["@uniquename"]}@#{mat["@enchantmentlevel"]}")["buy_price_max"]
 
-      black_market_price = MarketPrice.fetch_price(product_prices, unique_name, "Black Market")["sell_price_min"]
-      price_book = floor(actual_book * MarketPrice.lower_sell_order(journal_prices, full_journal)["sell_price_min"])
-      revenue = black_market_price + price_book
+      single_book_value = MarketPrice.average_sell_order(journal_prices, full_journal)
+      price_book = floor(actual_book * single_book_value)
+      {type, bm_value, bm_date} = lowest_bm_value(product_prices, unique_name)
+      {:ok, black_market_date, 0} = DateTime.from_iso8601(bm_date <> "Z")
+      revenue = bm_value + price_book
       expenses = Journals.get_journal_price(Item.get_tier(item)) + mat_cost*(1-return_rate) + floor(0.045*revenue)
+      break_even = expenses - price_book
 
       [
         unique_name,
         actual_book,
-        price_book,
-        black_market_price,
+        "#{price_book} (#{single_book_value})",
+        break_even,
+        "#{bm_value} (#{type})",
         mat_cost,
-        revenue - expenses
+        revenue - expenses,
+        black_market_date
       ]
     end)
   end

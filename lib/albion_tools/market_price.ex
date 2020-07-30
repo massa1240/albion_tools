@@ -24,11 +24,6 @@ defmodule AlbionTools.MarketPrice do
     end
   end
 
-  def fetch_market_data(items, cities) do
-    price_list = Api.fetch_market_data(items, cities)
-    %MarketPrice{items: items, cities: cities, price_list: price_list}
-  end
-
   def fetch_price(market_price = %MarketPrice{}, item_unique_name, city) do
     Enum.find market_price.price_list, fn price ->
       price["city"] == city && price["item_id"] == item_unique_name
@@ -41,43 +36,55 @@ defmodule AlbionTools.MarketPrice do
     end
   end
 
-  def higher_sell_order(market_price = %MarketPrice{}, item_unique_name) do
+  def highest_sell_order(market_price = %MarketPrice{}, item_unique_name) do
     market_price
     |> fetch_item_prices(item_unique_name)
-    |> higher_sell_order()
+    |> highest_sell_order()
   end
 
-  def higher_buy_order(market_price = %MarketPrice{}, item_unique_name) do
+  def second_lowest_sell_order(market_price = %MarketPrice{}, item_unique_name) do
+
+  end
+
+  def average_sell_order(market_price = %MarketPrice{}, item_unique_name) do
+    price_list = market_price
+    |> fetch_item_prices(item_unique_name)
+    |> Enum.map fn price -> price["sell_price_min"] end
+
+    Enum.reduce(price_list, 0, fn x, acc -> x + acc end)/Enum.count(price_list)
+  end
+
+  def highest_buy_order(market_price = %MarketPrice{}, item_unique_name) do
     market_price
     |> fetch_item_prices(item_unique_name)
-    |> higher_buy_order()
+    |> highest_buy_order()
   end
 
-  def lower_sell_order(market_price = %MarketPrice{}, item_unique_name) do
+  def lowest_sell_order(market_price = %MarketPrice{}, item_unique_name) do
     market_price
     |> fetch_item_prices(item_unique_name)
-    |> lower_sell_order()
+    |> lowest_sell_order()
   end
 
-  def lower_buy_order(market_price = %MarketPrice{}, item_unique_name) do
+  def lowest_buy_order(market_price = %MarketPrice{}, item_unique_name) do
     market_price
     |> fetch_item_prices(item_unique_name)
-    |> lower_buy_order()
+    |> lowest_buy_order()
   end
 
-  def higher_sell_order(price_list) do
+  def highest_sell_order(price_list) do
     Enum.max_by(price_list, &(&1["sell_price_min"]))
   end
 
-  def higher_buy_order(price_list) do
-    Enum.max_by(price_list, &(&1["buy_price_min"]))
+  def highest_buy_order(price_list) do
+    Enum.max_by(price_list, &(&1["buy_price_max"]))
   end
 
-  def lower_sell_order(price_list) do
+  def lowest_sell_order(price_list) do
     Enum.min_by(price_list, &(&1["sell_price_min"]))
   end
 
-  def lower_buy_order(price_list) do
-    Enum.min_by(price_list, &(&1["buy_price_min"]))
+  def lowest_buy_order(price_list) do
+    Enum.min_by(price_list, &(&1["buy_price_max"]))
   end
 end
